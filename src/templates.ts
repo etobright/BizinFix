@@ -335,6 +335,51 @@ export const templates: Template[] = [
       ),
     ],
   },
+  {
+    name: 'Serviceo Launch',
+    category: 'Classique',
+    format: '16:9',
+    background: '#101d18',
+    accent: '#caff63',
+    scenes: [
+      {
+        title: 'Your home.\nHandled.',
+        subtitle: 'Book trusted local pros in minutes.',
+        seconds: 6,
+        motion: 'orbit',
+      },
+    ],
+  },
+  {
+    name: 'Product Spotlight',
+    category: 'Classique',
+    format: '16:9',
+    background: '#16152b',
+    accent: '#bcabff',
+    scenes: [
+      {
+        title: 'Meet your\nnext favorite app.',
+        subtitle: 'A better way to get things done.',
+        seconds: 6,
+        motion: 'orbit',
+      },
+    ],
+  },
+  {
+    name: 'Urban Motion',
+    category: 'Classique',
+    format: '16:9',
+    background: '#23201b',
+    accent: '#ffbc70',
+    scenes: [
+      {
+        title: 'Ready when\nyou are.',
+        subtitle: 'Everything you need, one tap away.',
+        seconds: 6,
+        motion: 'orbit',
+      },
+    ],
+  },
 ];
 
 export function createTemplateProject(template: Template): Project {

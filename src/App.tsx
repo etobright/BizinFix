@@ -904,7 +904,7 @@ export function App() {
                       <strong>{t.category}</strong>
                       <small className="template-meta">
                         {t.scenes.reduce((total, scene) => total + scene.seconds, 0)} s · {t.format} ·{' '}
-                        {t.scenes.length} scènes
+                        {t.scenes.length} {t.scenes.length === 1 ? 'scène' : 'scènes'}
                       </small>
                     </span>
                     <ArrowRight size={16} />
