@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: bizinfix-video-studio
+    runtime: docker
+    plan: standard
+    healthCheckPath: /healthz
+    numInstances: 1
+    disk:
+      name: studio-data
+      mountPath: /app/studio-data
+      sizeGB: 5
+    envVars:
+      - key: STUDIO_DATA_DIR
+        value: /app/studio-data
+      - key: STUDIO_ACCESS_PASSWORD
+        sync: false
