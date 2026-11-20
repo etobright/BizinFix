@@ -1,6 +1,10 @@
-# Bizinfix Video Studio
+# Bizinfix Mobile Studio
 
-Éditeur vidéo local pour transformer une capture d’application en démonstration animée. Le projet initial contient un écran Bizinfix illustratif et une scène prête à personnaliser.
+Studio de mockups mobiles en 3D pour présenter Bizinfix. Le projet initial contient un écran d’exemple en français qui peut être remplacé par une capture ou une vidéo réelle.
+
+Dans **Studio 3D**, importe une capture ou dépose-la sur l’aperçu. Choisis un châssis iPhone ou Android, puis règle la finition et l’éclairage. L’onglet **3D** permet de régler les poses **Début** et **Fin** de chaque scène. Tu peux orienter le téléphone directement dans l’aperçu et appliquer un préréglage dans **Mouvements**. Le rendu reprend les réglages de l’aperçu et propose un export MP4 ou PNG.
+
+Les projets vidéo précédents restent accessibles dans **Projets**. Le bouton **Passer en mockup** applique la mise en page mobile au projet ouvert.
 
 ## Installation sous Windows
 

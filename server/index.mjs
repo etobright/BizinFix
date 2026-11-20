@@ -48,7 +48,24 @@ const kinds = {
 const upload = multer({ dest: media, limits: { fileSize: 500 * 1024 * 1024, files: 1 } });
 const uuid = z.uuid();
 const color = z.string().regex(/^#[0-9a-f]{6}$/i);
+const pose = z.object({
+  yaw: z.number().min(-180).max(180),
+  pitch: z.number().min(-85).max(85),
+  roll: z.number().min(-180).max(180),
+  zoom: z.number().min(55).max(170),
+  x: z.number().min(-100).max(100),
+  y: z.number().min(-100).max(100),
+});
 const schema = z.object({
+  mockup: z
+    .object({
+      device: z.enum(['iphone', 'android']),
+      finish: z.enum(['graphite', 'silver', 'green']),
+      light: z.enum(['studio', 'soft', 'rim']),
+      backdrop: z.enum(['gradient', 'solid']),
+      caption: z.boolean(),
+    })
+    .optional(),
   id: uuid,
   name: z.string().max(150),
   format: z.enum(['16:9', '9:16', '1:1']),
@@ -75,6 +92,7 @@ const schema = z.object({
         seconds: z.number().min(1).max(60),
         motion: z.enum(['orbit', 'zoom', 'slide', 'still']),
         asset: uuid.optional(),
+        camera: z.object({ start: pose, end: pose, easing: z.enum(['smooth', 'linear']) }).optional(),
         example: z
           .object({
             brand: z.string().max(40),

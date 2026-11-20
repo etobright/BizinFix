@@ -46,6 +46,67 @@ function Shot({
           { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
         );
   const { accent, background } = project;
+  if (project.mockup) {
+    const mockup = project.mockup;
+    return (
+      <AbsoluteFill
+        style={{
+          color: '#f7fbf7',
+          fontFamily: project.font,
+          overflow: 'hidden',
+          background:
+            mockup.backdrop === 'solid'
+              ? background
+              : `radial-gradient(ellipse at 50% 45%, ${accent}29, transparent 67%), ${background}`,
+        }}
+      >
+        <AbsoluteFill style={{ filter: 'drop-shadow(0 26px 34px #0008)' }}>
+          <Phone
+            width={width}
+            height={height}
+            scene={scene}
+            asset={asset}
+            src={asset ? assetUrl(asset.id, origin) : undefined}
+            accent={accent}
+            mockup={mockup}
+          />
+        </AbsoluteFill>
+        {mockup.caption && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '8%',
+              right: '8%',
+              bottom: '6%',
+              textAlign: 'center',
+              opacity: reveal,
+              textShadow: '0 3px 14px #000c',
+            }}
+          >
+            <div style={{ fontSize: 54 * u, fontWeight: 800, whiteSpace: 'pre-line' }}>
+              {scene.title}
+            </div>
+            {scene.subtitle && (
+              <div style={{ fontSize: 28 * u, marginTop: 8 * u }}>{scene.subtitle}</div>
+            )}
+          </div>
+        )}
+        {project.logo && (
+          <Img
+            src={assetUrl(project.logo, origin)}
+            style={{
+              position: 'absolute',
+              left: '5%',
+              top: '5%',
+              maxWidth: 220 * u,
+              maxHeight: 55 * u,
+              objectFit: 'contain',
+            }}
+          />
+        )}
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill
       style={{

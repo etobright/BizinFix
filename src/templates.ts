@@ -386,6 +386,7 @@ export function createTemplateProject(template: Template): Project {
   return {
     ...createProject(template.name),
     format: template.format,
+    mockup: undefined,
     accent: template.accent,
     background: template.background,
     scenes: template.scenes.map((scene) => ({

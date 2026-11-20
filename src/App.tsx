@@ -5,6 +5,7 @@ import {
   type ChangeEvent,
   type CSSProperties,
   type DragEvent,
+  type PointerEvent,
 } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
 import {
@@ -23,6 +24,9 @@ import {
   Maximize,
   Music2,
   PanelTop,
+  Smartphone,
+  Box,
+  Rotate3D,
   Pause,
   Play,
   Plus,
@@ -36,15 +40,23 @@ import {
 import {
   assetUrl,
   createProject,
+  cameraPresets,
+  defaultMockup,
+  presetMove,
+  type CameraMove,
+  type CameraPose,
+  type MockupStyle,
   formats,
   frames,
   newScene,
+  newMockupScene,
   type Asset,
   type Format,
   type Project,
   type Scene,
 } from './model';
 import { createTemplateProject, templates } from './templates';
+import { CameraPanel } from './CameraPanel';
 import { Demo } from './video/Demo';
 
 type Job = {
@@ -56,10 +68,21 @@ type Job = {
 };
 type View = 'studio' | 'projects' | 'templates';
 const storage = 'bizinfix-studio-v1';
+const mobileIntro = 'bizinfix-mobile-workspace-v1';
 function initialProjects(): Project[] {
   try {
     const saved = JSON.parse(localStorage.getItem(storage) ?? 'null');
-    if (Array.isArray(saved)) return saved;
+    if (Array.isArray(saved)) {
+      const projects: Project[] = saved;
+      // Give existing users the mobile workspace while retaining their saved videos.
+      if (
+        projects.length &&
+        projects.every((project) => !project.mockup) &&
+        !localStorage.getItem(mobileIntro)
+      )
+        return [createProject(), ...projects];
+      return projects;
+    }
   } catch {
     /* Recover from unreadable browser storage. */
   }
@@ -107,7 +130,11 @@ export function App() {
   const [active, setActive] = useState(() => projects[0]?.id ?? '');
   const [view, setView] = useState<View>(projects.length ? 'studio' : 'projects');
   const [sceneId, setSceneId] = useState('');
-  const [tab, setTab] = useState<'scene' | 'brand' | 'audio'>('scene');
+  const [tab, setTab] = useState<'camera' | 'scene' | 'brand' | 'audio'>(() =>
+    projects[0]?.mockup ? 'camera' : 'scene',
+  );
+  const [slot, setSlot] = useState<'start' | 'end'>('start');
+  const rotationDrag = useRef<{ x: number; y: number; pose: CameraPose }>();
   const [mediaFilter, setMediaFilter] = useState<'all' | Asset['kind']>('all');
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -118,22 +145,34 @@ export function App() {
   const [saved, setSaved] = useState(true);
   const [uploading, setUploading] = useState(false);
   const player = useRef<PlayerRef>(null);
+  const addedSceneStart = useRef<number>();
   const fileInput = useRef<HTMLInputElement>(null);
   const project = projects.find((p) => p.id === active);
   const scene = project?.scenes.find((s) => s.id === sceneId) ?? project?.scenes[0];
   const total = project ? frames(project) : 1;
   const [width, height] = formats[project?.format ?? '16:9'];
   const fps = project?.fps ?? 30;
+  const mockup = project?.mockup;
+  const camera = scene?.camera ?? presetMove(cameraPresets[0]);
 
   useEffect(() => {
     try {
       localStorage.setItem(storage, JSON.stringify(projects));
+      localStorage.setItem(mobileIntro, '1');
       setSaved(true);
     } catch {
       setSaved(false);
       setNotice('La sauvegarde locale a échoué. Vérifiez l’espace disponible.');
     }
   }, [projects]);
+  useEffect(() => {
+    const start = addedSceneStart.current;
+    if (start === undefined || start >= total) return;
+    addedSceneStart.current = undefined;
+    player.current?.pause();
+    player.current?.seekTo(start);
+    setFrame(start);
+  }, [total]);
   useEffect(() => {
     const current = player.current;
     if (!current || view !== 'studio') return;
@@ -203,14 +242,48 @@ export function App() {
     setFrame(0);
     setPlaying(false);
     setMuted(false);
-    setTab('scene');
+    setTab(p.mockup ? 'camera' : 'scene');
+    setSlot('start');
     setMediaFilter('all');
     setView('studio');
   }
-  function newProject(template?: (typeof templates)[number]) {
-    const p = template ? createTemplateProject(template) : createProject('Projet sans titre');
+  function newProject(template?: (typeof templates)[number], preset?: (typeof cameraPresets)[number]) {
+    const p = template ? createTemplateProject(template) : createProject();
+    if (preset) p.scenes[0] = { ...p.scenes[0], camera: presetMove(preset) };
     setProjects((all) => [p, ...all]);
     open(p);
+  }
+  function patchMockup(changes: Partial<MockupStyle>) {
+    patch({ mockup: { ...(mockup ?? defaultMockup), ...changes } });
+  }
+  function focusPose(next: 'start' | 'end') {
+    if (!project || !scene) return;
+    player.current?.pause();
+    const index = project.scenes.indexOf(scene);
+    const start = project.scenes
+      .slice(0, index)
+      .reduce((sum, item) => sum + Math.round(item.seconds * fps), 0);
+    setSlot(next);
+    const target = start + (next === 'end' ? Math.round(scene.seconds * fps) - 1 : 0);
+    if (player.current?.getCurrentFrame() !== target) seek(target);
+  }
+  function patchPose(changes: Partial<CameraPose>) {
+    focusPose(slot);
+    patchScene({ camera: { ...camera, [slot]: { ...camera[slot], ...changes } } });
+  }
+  function startRotation(event: PointerEvent<HTMLDivElement>) {
+    if (!mockup || tab !== 'camera' || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    rotationDrag.current = { x: event.clientX, y: event.clientY, pose: camera[slot] };
+    focusPose(slot);
+  }
+  function rotate(event: PointerEvent<HTMLDivElement>) {
+    const drag = rotationDrag.current;
+    if (!drag) return;
+    patchPose({
+      yaw: Math.round(Math.max(-180, Math.min(180, drag.pose.yaw + (event.clientX - drag.x) * 0.65))),
+      pitch: Math.round(Math.max(-85, Math.min(85, drag.pose.pitch + (event.clientY - drag.y) * 0.55))),
+    });
   }
   function duplicate(p: Project) {
     const copy = {
@@ -239,7 +312,8 @@ export function App() {
     if (!project) return;
     const index = project.scenes.findIndex((item) => item.id === s.id);
     setSceneId(s.id);
-    setTab('scene');
+    setTab(mockup ? 'camera' : 'scene');
+    setSlot('start');
     const start = project.scenes
       .slice(0, index)
       .reduce((sum, item) => sum + Math.round(item.seconds * fps), 0);
@@ -247,10 +321,12 @@ export function App() {
   }
   function addScene() {
     if (!project || project.scenes.length >= 100) return;
-    const item = newScene();
+    const item = mockup ? newMockupScene() : newScene();
+    if (mockup) addedSceneStart.current = total;
     patch({ scenes: [...project.scenes, item] });
     setSceneId(item.id);
-    setTab('scene');
+    setTab(mockup ? 'camera' : 'scene');
+    setSlot('start');
   }
   function moveScene(delta: number) {
     if (!project || !scene) return;
@@ -262,7 +338,7 @@ export function App() {
     patch({ scenes });
     seek(scenes.slice(0, target).reduce((sum, item) => sum + Math.round(item.seconds * fps), 0));
   }
-  async function importFiles(files: FileList | null) {
+  async function importFiles(files: FileList | null, replaceScreen = false) {
     if (!files || !project || uploading) return;
     const id = project.id;
     const selected = scene?.id;
@@ -274,6 +350,8 @@ export function App() {
         const body = new FormData();
         body.append('file', file);
         const asset = { ...(await api<Asset>('/api/media', { method: 'POST', body })), duration };
+        const replace = replaceScreen && asset.kind !== 'audio';
+        if (replace) replaceScreen = false;
         setProjects((list) =>
           list.map((p) => {
             if (p.id !== id) return p;
@@ -281,7 +359,9 @@ export function App() {
               ...p,
               assets: [...p.assets, asset],
               scenes: p.scenes.map((s) =>
-                s.id === selected && asset.kind !== 'audio' && !s.asset ? { ...s, asset: asset.id } : s,
+                s.id === selected && asset.kind !== 'audio' && (!s.asset || replace)
+                  ? { ...s, asset: asset.id }
+                  : s,
               ),
             };
           }),
@@ -316,9 +396,9 @@ export function App() {
     void importFiles(e.currentTarget.files);
     e.currentTarget.value = '';
   };
-  const drop = (e: DragEvent) => {
+  const drop = (e: DragEvent, replaceScreen = false) => {
     e.preventDefault();
-    void importFiles(e.dataTransfer.files);
+    void importFiles(e.dataTransfer.files, replaceScreen);
   };
   const studio = view === 'studio' && project && scene;
   const assets = project?.assets.filter((a) => mediaFilter === 'all' || a.kind === mediaFilter) ?? [];
@@ -330,10 +410,10 @@ export function App() {
       <header className="topbar">
         <button className="wordmark" onClick={() => setView('projects')}>
           <span className="brand">
-            <Clapperboard size={19} />
+            <Smartphone size={19} />
           </span>
           <span>
-            Bizinfix <b>Studio</b>
+            Bizinfix <b>Mobile Studio</b>
           </span>
         </button>
         <div className="topnav">
@@ -349,7 +429,7 @@ export function App() {
             onClick={() => setView('templates')}
           >
             <Layers3 size={15} />
-            Modèles
+            Mouvements
           </button>
           {project && (
             <button
@@ -359,7 +439,7 @@ export function App() {
               }}
             >
               <PanelTop size={15} />
-              Éditeur
+              Studio 3D
             </button>
           )}
         </div>
@@ -389,7 +469,7 @@ export function App() {
           )}
           {!studio && (
             <button className="primary" onClick={() => newProject()}>
-              <Plus size={17} /> Nouveau projet
+              <Plus size={17} /> Nouveau mockup
             </button>
           )}
         </div>
@@ -426,12 +506,12 @@ export function App() {
         </div>
       )}
       {studio && project && scene ? (
-        <main className="workspace">
-          <aside className="media panel" onDragOver={(e) => e.preventDefault()} onDrop={drop}>
+        <main className={mockup ? 'workspace mobile-studio' : 'workspace'}>
+          <aside className="media panel" onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(e)}>
             <div className="panel-heading">
               <div>
                 <FolderOpen size={16} />
-                <h2>Médias</h2>
+                <h2>{mockup ? 'Écran du téléphone' : 'Médias'}</h2>
               </div>
               <button
                 className="icon framed"
@@ -482,7 +562,8 @@ export function App() {
                   <span className="asset-tag">DÉMO</span>
                 </div>
                 <span className="file-label">
-                  <Film size={13} /> {scene.example ? 'Écran du modèle' : 'Écran Bizinfix'}
+                  <Film size={13} />{' '}
+                  {mockup ? 'Exemple Bizinfix' : scene.example ? 'Écran du modèle' : 'Écran Bizinfix'}
                 </span>
               </button>
             )}
@@ -506,8 +587,14 @@ export function App() {
             </div>
             <button className="dropzone" onClick={() => fileInput.current?.click()} disabled={uploading}>
               <UploadCloud size={21} />
-              <strong>{uploading ? 'Import en cours…' : 'Importer des fichiers'}</strong>
-              <small>ou glissez-les ici</small>
+              <strong>
+                {uploading
+                  ? 'Import en cours…'
+                  : mockup
+                    ? 'Importer une capture'
+                    : 'Importer des fichiers'}
+              </strong>
+              <small>{mockup ? 'Image ou vidéo Bizinfix' : 'ou glissez-les ici'}</small>
             </button>
           </aside>
           <section className="preview panel">
@@ -526,6 +613,17 @@ export function App() {
                 />
               </div>
               <div className="preview-settings">
+                {!mockup && (
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      patchMockup({});
+                      setTab('camera');
+                    }}
+                  >
+                    <Box size={15} /> Passer en mockup
+                  </button>
+                )}
                 <select
                   aria-label="Format vidéo"
                   value={project.format}
@@ -544,8 +642,25 @@ export function App() {
                 </button>
               </div>
             </div>
-            <div className="stage">
-              <div className="preview-fit" style={{ '--video-ratio': width / height } as CSSProperties}>
+            <div
+              className="stage"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => drop(e, Boolean(mockup))}
+            >
+              {mockup && (
+                <div className="stage-label">
+                  <Box size={14} /> Aperçu 3D
+                </div>
+              )}
+              <div
+                className={mockup && tab === 'camera' ? 'preview-fit camera-drag' : 'preview-fit'}
+                style={{ '--video-ratio': width / height } as CSSProperties}
+                onPointerDown={startRotation}
+                onPointerMove={rotate}
+                onLostPointerCapture={() => {
+                  rotationDrag.current = undefined;
+                }}
+              >
                 <Player
                   key={project.id}
                   ref={player}
@@ -555,12 +670,17 @@ export function App() {
                   compositionWidth={width}
                   compositionHeight={height}
                   fps={fps}
-                  initialFrame={Math.min(total - 1, Math.round(fps * 0.48))}
+                  initialFrame={mockup ? 0 : Math.min(total - 1, Math.round(fps * 0.48))}
                   style={{ width: '100%', height: '100%' }}
                   acknowledgeRemotionLicense
                   errorFallback={({ error }) => <div className="player-error">{error.message}</div>}
                 />
               </div>
+              {mockup && tab === 'camera' && (
+                <span className="stage-hint">
+                  <Rotate3D size={14} /> Glisse pour orienter le téléphone
+                </span>
+              )}
             </div>
             <div className="transport">
               <span className="timecode">
@@ -602,26 +722,62 @@ export function App() {
             <div className="panel-heading">
               <div>
                 <PanelTop size={16} />
-                <h2>Personnalisation</h2>
+                <h2>{mockup ? 'Réglages du mockup' : 'Personnalisation'}</h2>
               </div>
             </div>
-            <div className="inspector-tabs">
+            <div className={mockup ? 'inspector-tabs mockup-tabs' : 'inspector-tabs'}>
               {(
                 [
+                  ['camera', '3D'],
                   ['scene', 'Scène'],
                   ['brand', 'Identité'],
                   ['audio', 'Audio'],
                 ] as const
-              ).map(([key, label]) => (
-                <button key={key} className={tab === key ? 'selected' : ''} onClick={() => setTab(key)}>
-                  {label}
-                </button>
-              ))}
+              )
+                .filter(([key]) => key !== 'camera' || mockup)
+                .map(([key, label]) => (
+                  <button
+                    key={key}
+                    className={tab === key ? 'selected' : ''}
+                    onClick={() => {
+                      setTab(key);
+                      if (key === 'camera') focusPose(slot);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
             </div>
             <div className="inspector-body">
+              {tab === 'camera' && mockup && (
+                <CameraPanel
+                  style={mockup}
+                  move={camera}
+                  slot={slot}
+                  onStyle={patchMockup}
+                  onMove={(move: CameraMove) => {
+                    patchScene({ camera: move });
+                    focusPose('start');
+                  }}
+                  onPose={patchPose}
+                  onSlot={focusPose}
+                />
+              )}
+
               {tab === 'scene' && (
                 <>
                   <h3>Contenu</h3>
+                  {mockup && (
+                    <label className="caption-toggle">
+                      <input
+                        type="checkbox"
+                        checked={mockup.caption}
+                        onChange={(e) => patchMockup({ caption: e.target.checked })}
+                      />{' '}
+                      Afficher une légende
+                    </label>
+                  )}
+
                   <label>
                     Titre
                     <textarea
@@ -648,7 +804,13 @@ export function App() {
                       value={scene.asset ?? ''}
                       onChange={(e) => patchScene({ asset: e.target.value || undefined })}
                     >
-                      <option value="">{scene.example ? 'Écran du modèle' : 'Écran Bizinfix'}</option>
+                      <option value="">
+                        {mockup
+                          ? 'Exemple Bizinfix'
+                          : scene.example
+                            ? 'Écran du modèle'
+                            : 'Écran Bizinfix'}
+                      </option>
                       {visualAssets.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.name}
@@ -659,18 +821,20 @@ export function App() {
                   <div className="form-section">
                     <h3>Animation</h3>
                     <div className="field-pair">
-                      <label>
-                        Mouvement
-                        <select
-                          value={scene.motion}
-                          onChange={(e) => patchScene({ motion: e.target.value as Scene['motion'] })}
-                        >
-                          <option value="orbit">Rotation</option>
-                          <option value="zoom">Zoom</option>
-                          <option value="slide">Glissement</option>
-                          <option value="still">Fixe</option>
-                        </select>
-                      </label>
+                      {!mockup && (
+                        <label>
+                          Mouvement
+                          <select
+                            value={scene.motion}
+                            onChange={(e) => patchScene({ motion: e.target.value as Scene['motion'] })}
+                          >
+                            <option value="orbit">Rotation</option>
+                            <option value="zoom">Zoom</option>
+                            <option value="slide">Glissement</option>
+                            <option value="still">Fixe</option>
+                          </select>
+                        </label>
+                      )}
                       <label>
                         Durée (s)
                         <input
@@ -698,6 +862,21 @@ export function App() {
               {tab === 'brand' && (
                 <>
                   <h3>Identité visuelle</h3>
+                  {mockup && (
+                    <label>
+                      Style du fond
+                      <select
+                        value={mockup.backdrop}
+                        onChange={(e) =>
+                          patchMockup({ backdrop: e.target.value as MockupStyle['backdrop'] })
+                        }
+                      >
+                        <option value="gradient">Dégradé</option>
+                        <option value="solid">Uni</option>
+                      </select>
+                    </label>
+                  )}
+
                   <label>
                     Arrière-plan
                     <div className="color-field">
@@ -890,28 +1069,60 @@ export function App() {
         </main>
       ) : (
         <main className="collection">
-          <h1>{view === 'templates' ? 'Modèles' : 'Projets vidéo'}</h1>
+          <h1>{view === 'templates' ? 'Mouvements de caméra' : 'Projets'}</h1>
           {view === 'templates' ? (
-            <div className="card-grid">
-              {templates.map((t) => (
-                <button key={t.name} className="project-card" onClick={() => newProject(t)}>
-                  <div className="project-poster" style={{ background: t.background, color: t.accent }}>
-                    <Clapperboard size={24} />
-                    <strong>{t.name}</strong>
-                  </div>
-                  <span>
+            <>
+              <div className="card-grid motion-grid">
+                {cameraPresets.map((preset, index) => (
+                  <button
+                    key={preset.id}
+                    className="project-card"
+                    onClick={() => newProject(undefined, preset)}
+                  >
+                    <div className="motion-poster">
+                      <span className="motion-track" />
+                      <span
+                        className="device-outline iphone"
+                        style={{ transform: `rotate(${(index - 2) * 11}deg)` }}
+                      />
+                    </div>
                     <span>
-                      <strong>{t.category}</strong>
-                      <small className="template-meta">
-                        {t.scenes.reduce((total, scene) => total + scene.seconds, 0)} s · {t.format} ·{' '}
-                        {t.scenes.length} {t.scenes.length === 1 ? 'scène' : 'scènes'}
-                      </small>
+                      <span>
+                        <strong>{preset.name}</strong>
+                        <small className="template-meta">{preset.detail}</small>
+                      </span>
+                      <ArrowRight size={16} />
                     </span>
-                    <ArrowRight size={16} />
-                  </span>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
+              <details className="legacy-templates">
+                <summary>Scénarios vidéo existants</summary>
+                <div className="card-grid">
+                  {templates.map((t) => (
+                    <button key={t.name} className="project-card" onClick={() => newProject(t)}>
+                      <div
+                        className="project-poster"
+                        style={{ background: t.background, color: t.accent }}
+                      >
+                        <Clapperboard size={24} />
+                        <strong>{t.name}</strong>
+                      </div>
+                      <span>
+                        <span>
+                          <strong>{t.category}</strong>
+                          <small className="template-meta">
+                            {t.scenes.reduce((total, scene) => total + scene.seconds, 0)} s · {t.format}{' '}
+                            · {t.scenes.length} {t.scenes.length === 1 ? 'scène' : 'scènes'}
+                          </small>
+                        </span>
+                        <ArrowRight size={16} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </details>
+            </>
           ) : (
             <div className="card-grid">
               {projects.map((p) => (

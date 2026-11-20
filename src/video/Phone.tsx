@@ -13,7 +13,15 @@ import {
   TextureLoader,
 } from 'three';
 import { Freeze, interpolate, useCurrentFrame, useRemotionEnvironment, useVideoConfig } from 'remotion';
-import { type Asset, type ExampleScreen, type Scene } from '../model';
+import {
+  cameraPresets,
+  presetMove,
+  type Asset,
+  type CameraPose,
+  type ExampleScreen,
+  type MockupStyle,
+  type Scene,
+} from '../model';
 
 function rounded(w: number, h: number, r: number) {
   const x = -w / 2,
@@ -37,6 +45,21 @@ const shell = new ExtrudeGeometry(rounded(2.11, 4.31, 0.24), {
   bevelThickness: 0.035,
   bevelSegments: 4,
 });
+const androidShell = new ExtrudeGeometry(rounded(2.11, 4.31, 0.13), {
+  depth: 0.12,
+  bevelEnabled: true,
+  bevelSize: 0.038,
+  bevelThickness: 0.028,
+  bevelSegments: 3,
+});
+const rearPlate = new ExtrudeGeometry(rounded(0.81, 0.84, 0.15), { depth: 0.033, bevelEnabled: false });
+const rearRim = new ShapeGeometry(rounded(0.34, 0.34, 0.17));
+const rearGlass = new ShapeGeometry(rounded(0.245, 0.245, 0.122));
+const rearLenses = [
+  [0.15, 0.19],
+  [-0.18, -0.03],
+  [0.15, -0.22],
+] as const;
 const screen = new ShapeGeometry(rounded(1.995, 4.19, 0.225));
 const uv = screen.getAttribute('uv');
 for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 1.995 + 0.5, uv.getY(i) / 4.19 + 0.5);
@@ -234,11 +257,13 @@ function Device({
   asset,
   src,
   accent,
+  mockup,
 }: {
   scene: Scene;
   asset?: Asset;
   src?: string;
   accent: string;
+  mockup?: MockupStyle;
 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -246,24 +271,65 @@ function Device({
   const intro = interpolate(progress, [0, 0.22, 1], [0, 1, 1]);
   const eased = 1 - Math.pow(1 - intro, 3);
   const sway = Math.sin(progress * Math.PI * 2);
+  const move = mockup ? (scene.camera ?? presetMove(cameraPresets[0])) : undefined;
+  const t = move?.easing === 'smooth' ? progress * progress * (3 - 2 * progress) : progress;
+  const value = (axis: keyof CameraPose) =>
+    move ? interpolate(t, [0, 1], [move.start[axis], move.end[axis]]) : 0;
+  const deg = Math.PI / 180;
+  const android = mockup?.device === 'android';
+  const finish = { graphite: '#222b25', silver: '#9fa9ad', green: '#355f4e' };
   const lastFrame = asset?.duration ? Math.max(0, Math.ceil(asset.duration * fps) - 1) : frame;
   return (
     <group
-      position={[
-        scene.motion === 'slide' ? (1 - eased) * 1.35 : 0,
-        scene.motion === 'still' ? 0 : (1 - eased) * -0.24,
-        0,
-      ]}
-      rotation={[
-        0.09 + (scene.motion === 'orbit' ? sway * 0.08 : 0),
-        -0.29 + (scene.motion === 'orbit' ? sway * 0.35 : 0),
-        -0.16 + (scene.motion === 'orbit' ? sway * 0.09 : 0),
-      ]}
-      scale={scene.motion === 'zoom' ? 0.77 + 0.23 * eased : 1}
+      position={
+        move
+          ? [value('x') * 0.036, value('y') * 0.036, 0]
+          : [
+              scene.motion === 'slide' ? (1 - eased) * 1.35 : 0,
+              scene.motion === 'still' ? 0 : (1 - eased) * -0.24,
+              0,
+            ]
+      }
+      rotation={
+        move
+          ? [value('pitch') * deg, value('yaw') * deg, value('roll') * deg]
+          : [
+              0.09 + (scene.motion === 'orbit' ? sway * 0.08 : 0),
+              -0.29 + (scene.motion === 'orbit' ? sway * 0.35 : 0),
+              -0.16 + (scene.motion === 'orbit' ? sway * 0.09 : 0),
+            ]
+      }
+      scale={move ? value('zoom') / 100 : scene.motion === 'zoom' ? 0.77 + 0.23 * eased : 1}
     >
-      <mesh geometry={shell}>
-        <meshPhysicalMaterial color="#222b25" metalness={0.62} roughness={0.24} clearcoat={0.7} />
+      <mesh geometry={android ? androidShell : shell}>
+        <meshPhysicalMaterial
+          color={mockup ? finish[mockup.finish] : finish.graphite}
+          metalness={0.62}
+          roughness={0.24}
+          clearcoat={0.7}
+        />
       </mesh>
+      {mockup && (
+        <group position={[android ? 0.59 : 0.57, 1.56, -0.04]} rotation={[0, Math.PI, 0]}>
+          <mesh geometry={rearPlate} scale={android ? [0.63, 1.14, 1] : [1, 1, 1]}>
+            <meshStandardMaterial color={finish[mockup.finish]} metalness={0.48} roughness={0.31} />
+          </mesh>
+          {rearLenses.map(([x, y], i) => (
+            <group key={i} position={android ? [0, 0.27 - i * 0.27, 0.05] : [x, y, 0.05]}>
+              <mesh geometry={rearRim} scale={android ? [0.76, 0.76, 1] : [1, 1, 1]}>
+                <meshStandardMaterial color="#131917" metalness={0.55} roughness={0.27} />
+              </mesh>
+              <mesh
+                geometry={rearGlass}
+                position={[0, 0, 0.005]}
+                scale={android ? [0.76, 0.76, 1] : [1, 1, 1]}
+              >
+                <meshPhysicalMaterial color="#182b36" metalness={0.46} roughness={0.15} clearcoat={1} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      )}
       <mesh geometry={button} position={[1.078, 0.57, 0.035]}>
         <meshStandardMaterial color="#7b8a80" metalness={0.5} roughness={0.3} />
       </mesh>
@@ -276,12 +342,14 @@ function Device({
       ) : (
         <DemoScreen example={scene.example} accent={accent} />
       )}
-      <mesh geometry={island} position={[0, 1.935, 0.165]}>
-        <meshBasicMaterial color="#101412" />
-      </mesh>
-      <mesh position={[0.157, 1.935, 0.17]}>
-        <circleGeometry args={[0.035, 20]} />
-        <meshBasicMaterial color={new Color(accent).multiplyScalar(0.14)} />
+      {!android && (
+        <mesh geometry={island} position={[0, 1.935, 0.165]}>
+          <meshBasicMaterial color="#101412" />
+        </mesh>
+      )}
+      <mesh position={[android ? 0 : 0.157, 1.935, 0.17]}>
+        <circleGeometry args={[android ? 0.06 : 0.035, 20]} />
+        <meshBasicMaterial color={android ? '#101412' : new Color(accent).multiplyScalar(0.14)} />
       </mesh>
     </group>
   );
@@ -298,6 +366,7 @@ export function Phone({
   asset?: Asset;
   src?: string;
   accent: string;
+  mockup?: MockupStyle;
 }) {
   return (
     <ThreeCanvas
@@ -308,9 +377,19 @@ export function Phone({
       frameloop="demand"
       dpr={1}
     >
-      <ambientLight intensity={1.43} />
-      <directionalLight color="#ffffff" position={[3, 5, 5]} intensity={3.5} />
-      <directionalLight color="#bcffd0" position={[-4, 1, 1]} intensity={2.5} />
+      <ambientLight
+        intensity={device.mockup?.light === 'soft' ? 2.45 : device.mockup?.light === 'rim' ? 0.65 : 1.43}
+      />
+      <directionalLight
+        color="#ffffff"
+        position={[3, 5, 5]}
+        intensity={device.mockup?.light === 'soft' ? 1.25 : 3.5}
+      />
+      <directionalLight
+        color="#bcffd0"
+        position={[-4, 1, 1]}
+        intensity={device.mockup?.light === 'rim' ? 5.5 : 2.5}
+      />
       <Device key={device.src} {...device} />
     </ThreeCanvas>
   );
