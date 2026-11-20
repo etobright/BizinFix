@@ -54,7 +54,6 @@ export function scheduleRender(job, project, origin, outputDirectory) {
           codec: 'h264',
           pixelFormat: 'yuv420p',
           outputLocation: output,
-          concurrency: 2,
           ...browser,
           onProgress: ({ progress }) => {
             job.progress = 0.15 + 0.84 * progress;
