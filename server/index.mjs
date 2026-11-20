@@ -75,6 +75,14 @@ const schema = z.object({
         seconds: z.number().min(1).max(60),
         motion: z.enum(['orbit', 'zoom', 'slide', 'still']),
         asset: uuid.optional(),
+        example: z
+          .object({
+            brand: z.string().max(40),
+            heading: z.string().max(50),
+            rows: z.array(z.string().max(55)).max(3),
+            action: z.string().max(40),
+          })
+          .optional(),
       }),
     )
     .min(1)

@@ -13,7 +13,7 @@ import {
   TextureLoader,
 } from 'three';
 import { Freeze, interpolate, useCurrentFrame, useRemotionEnvironment, useVideoConfig } from 'remotion';
-import { type Asset, type Scene } from '../model';
+import { type Asset, type ExampleScreen, type Scene } from '../model';
 
 function rounded(w: number, h: number, r: number) {
   const x = -w / 2,
@@ -120,7 +120,7 @@ function ImageScreen({ src }: { src: string }) {
   texture.colorSpace = SRGBColorSpace;
   return <Screen texture={texture} />;
 }
-function DemoScreen() {
+function DemoScreen({ example, accent }: { example?: ExampleScreen; accent: string }) {
   const texture = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = 480;
@@ -137,49 +137,94 @@ function DemoScreen() {
       ctx.font = weight + ' ' + size + 'px Arial';
       ctx.fillText(value, x, y);
     };
-    rect(0, 0, 480, 1008, 0, '#f4f5ed');
-    label('9:41', 27, 42, 18, '#172319', 700);
-    label('▰ ▰', 408, 42, 17, '#172319');
-    rect(22, 68, 37, 37, 10, '#caff63');
-    label('b', 33, 96, 27, '#182b1e', 900);
-    label('bizinfix', 70, 96, 30, '#182b1e', 800);
-    label('Good morning, Alex', 24, 151, 30, '#172319', 800);
-    label('What can we help you with?', 25, 183, 21, '#5d6e5f');
-    rect(24, 207, 432, 54, 16, '#e7ebe1');
-    label('⌕  Search for a service', 43, 241, 19, '#5d6e5f');
-    rect(24, 286, 432, 245, 24, '#183828');
-    ctx.strokeStyle = '#376048';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 6; i++) {
+    if (example) {
+      const ink = '#18231e';
+      rect(0, 0, 480, 1008, 0, '#f5f6f2');
+      label('9:41', 26, 44, 19, ink, 700);
+      rect(390, 29, 36, 15, 4, ink);
+      rect(430, 33, 5, 7, 2, ink);
+      rect(24, 75, 46, 46, 13, accent);
+      label(example.brand.slice(0, 1), 39, 107, 27, ink, 800);
+      label(example.brand, 84, 107, 27, ink, 800);
+
+      rect(24, 153, 432, 239, 25, '#182920');
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(432, 460, 24 + i * 20, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.roundRect(24, 153, 432, 239, 25);
+      ctx.clip();
+      ctx.strokeStyle = accent + '55';
+      ctx.lineWidth = 2;
+      for (let radius = 34; radius < 150; radius += 23) {
+        ctx.beginPath();
+        ctx.arc(408, 360, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.fillStyle = '#fff';
+      ctx.font = '800 35px Arial';
+      ctx.fillText(example.heading, 46, 251, 386);
+      rect(46, 286, 84, 6, 3, accent);
+
+      example.rows.forEach((row, index) => {
+        const y = 427 + index * 110;
+        rect(24, y, 432, 88, 17, '#e6ebe4');
+        rect(43, y + 22, 44, 44, 13, accent);
+        label(String(index + 1), 58, y + 51, 21, ink, 700);
+        ctx.fillStyle = ink;
+        ctx.font = '700 23px Arial';
+        ctx.fillText(row, 105, y + 53, 327);
+      });
+      rect(24, 842, 432, 74, 23, accent);
+      ctx.font = '800 26px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = ink;
+      ctx.fillText(example.action, 240, 888, 366);
+      rect(164, 977, 152, 7, 4, ink);
+    } else {
+      rect(0, 0, 480, 1008, 0, '#f4f5ed');
+      label('9:41', 27, 42, 18, '#172319', 700);
+      label('▰ ▰', 408, 42, 17, '#172319');
+      rect(22, 68, 37, 37, 10, '#caff63');
+      label('b', 33, 96, 27, '#182b1e', 900);
+      label('bizinfix', 70, 96, 30, '#182b1e', 800);
+      label('Good morning, Alex', 24, 151, 30, '#172319', 800);
+      label('What can we help you with?', 25, 183, 21, '#5d6e5f');
+      rect(24, 207, 432, 54, 16, '#e7ebe1');
+      label('⌕  Search for a service', 43, 241, 19, '#5d6e5f');
+      rect(24, 286, 432, 245, 24, '#183828');
+      ctx.strokeStyle = '#376048';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.arc(432, 460, 24 + i * 20, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      label('HOME SERVICES', 48, 325, 16, '#caff63', 700);
+      label('A little help.', 48, 381, 37, '#fff', 800);
+      label('A lot more time.', 48, 425, 37, '#fff', 800);
+      rect(47, 451, 165, 47, 23, '#caff63');
+      label('Explore services', 62, 480, 17, '#19321f', 700);
+      label('Popular services', 24, 587, 28, '#172319', 800);
+      [
+        ['⌁', 'Plumbing'],
+        ['ϟ', 'Electrical'],
+        ['✧', 'Cleaning'],
+        ['⌂', 'Handyman'],
+      ].forEach(([icon, name], i) => {
+        const x = 24 + (i % 2) * 220,
+          y = 609 + Math.floor(i / 2) * 121;
+        rect(x, y, 208, 108, 15, '#e6ebdf');
+        label(icon, x + 17, y + 44, 33, '#365846', 800);
+        label(name, x + 17, y + 80, 21, '#172319', 700);
+      });
+      rect(0, 923, 480, 85, 0, '#e9ede2');
+      label('Home          Explore          Bookings', 38, 966, 20, '#365846', 700);
+      rect(165, 986, 150, 7, 4, '#1c2820');
     }
-    label('HOME SERVICES', 48, 325, 16, '#caff63', 700);
-    label('A little help.', 48, 381, 37, '#fff', 800);
-    label('A lot more time.', 48, 425, 37, '#fff', 800);
-    rect(47, 451, 165, 47, 23, '#caff63');
-    label('Explore services', 62, 480, 17, '#19321f', 700);
-    label('Popular services', 24, 587, 28, '#172319', 800);
-    [
-      ['⌁', 'Plumbing'],
-      ['ϟ', 'Electrical'],
-      ['✧', 'Cleaning'],
-      ['⌂', 'Handyman'],
-    ].forEach(([icon, name], i) => {
-      const x = 24 + (i % 2) * 220,
-        y = 609 + Math.floor(i / 2) * 121;
-      rect(x, y, 208, 108, 15, '#e6ebdf');
-      label(icon, x + 17, y + 44, 33, '#365846', 800);
-      label(name, x + 17, y + 80, 21, '#172319', 700);
-    });
-    rect(0, 923, 480, 85, 0, '#e9ede2');
-    label('Home          Explore          Bookings', 38, 966, 20, '#365846', 700);
-    rect(165, 986, 150, 7, 4, '#1c2820');
     const t = new CanvasTexture(c);
     t.colorSpace = SRGBColorSpace;
     return t;
-  }, []);
+  }, [example, accent]);
   useEffect(() => () => texture.dispose(), [texture]);
   return <Screen texture={texture} />;
 }
@@ -229,7 +274,7 @@ function Device({
       ) : src ? (
         <ImageScreen src={src} />
       ) : (
-        <DemoScreen />
+        <DemoScreen example={scene.example} accent={accent} />
       )}
       <mesh geometry={island} position={[0, 1.935, 0.165]}>
         <meshBasicMaterial color="#101412" />

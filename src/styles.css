@@ -848,3 +848,9 @@ select:focus-visible {
     display: none;
   }
 }
+
+.template-meta {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}

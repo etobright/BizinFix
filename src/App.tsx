@@ -39,12 +39,12 @@ import {
   formats,
   frames,
   newScene,
-  templates,
   type Asset,
   type Format,
   type Project,
   type Scene,
 } from './model';
+import { createTemplateProject, templates } from './templates';
 import { Demo } from './video/Demo';
 
 type Job = {
@@ -208,12 +208,7 @@ export function App() {
     setView('studio');
   }
   function newProject(template?: (typeof templates)[number]) {
-    const p = createProject(template?.name ?? 'Projet sans titre');
-    if (template) {
-      p.accent = template.accent;
-      p.background = template.background;
-      p.scenes = [{ ...newScene(), title: template.title, subtitle: template.subtitle }];
-    }
+    const p = template ? createTemplateProject(template) : createProject('Projet sans titre');
     setProjects((all) => [p, ...all]);
     open(p);
   }
@@ -245,7 +240,10 @@ export function App() {
     const index = project.scenes.findIndex((item) => item.id === s.id);
     setSceneId(s.id);
     setTab('scene');
-    seek(project.scenes.slice(0, index).reduce((sum, item) => sum + Math.round(item.seconds * fps), 0));
+    const start = project.scenes
+      .slice(0, index)
+      .reduce((sum, item) => sum + Math.round(item.seconds * fps), 0);
+    seek(start + (s.example ? Math.round(fps * 0.45) : 0));
   }
   function addScene() {
     if (!project || project.scenes.length >= 100) return;
@@ -484,7 +482,7 @@ export function App() {
                   <span className="asset-tag">DÉMO</span>
                 </div>
                 <span className="file-label">
-                  <Film size={13} /> Écran Bizinfix
+                  <Film size={13} /> {scene.example ? 'Écran du modèle' : 'Écran Bizinfix'}
                 </span>
               </button>
             )}
@@ -650,7 +648,7 @@ export function App() {
                       value={scene.asset ?? ''}
                       onChange={(e) => patchScene({ asset: e.target.value || undefined })}
                     >
-                      <option value="">Écran Bizinfix</option>
+                      <option value="">{scene.example ? 'Écran du modèle' : 'Écran Bizinfix'}</option>
                       {visualAssets.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.name}
@@ -899,10 +897,16 @@ export function App() {
                 <button key={t.name} className="project-card" onClick={() => newProject(t)}>
                   <div className="project-poster" style={{ background: t.background, color: t.accent }}>
                     <Clapperboard size={24} />
-                    <strong>{t.title}</strong>
+                    <strong>{t.name}</strong>
                   </div>
                   <span>
-                    {t.name}
+                    <span>
+                      <strong>{t.category}</strong>
+                      <small className="template-meta">
+                        {t.scenes.reduce((total, scene) => total + scene.seconds, 0)} s · {t.format} ·{' '}
+                        {t.scenes.length} scènes
+                      </small>
+                    </span>
                     <ArrowRight size={16} />
                   </span>
                 </button>

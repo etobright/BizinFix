@@ -134,7 +134,7 @@ function Shot({
             marginBottom: 22 * u,
           }}
         >
-          PRODUCT DEMO
+          {scene.example ? 'DÉMONSTRATION' : 'PRODUCT DEMO'}
         </div>
         <div
           style={{

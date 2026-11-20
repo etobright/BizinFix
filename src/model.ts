@@ -1,6 +1,7 @@
 export const formats = { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] } as const;
 export type Format = keyof typeof formats;
 export type Asset = { id: string; name: string; kind: 'video' | 'image' | 'audio'; duration?: number };
+export type ExampleScreen = { brand: string; heading: string; rows: string[]; action: string };
 export type Scene = {
   id: string;
   title: string;
@@ -8,6 +9,7 @@ export type Scene = {
   seconds: number;
   motion: 'orbit' | 'zoom' | 'slide' | 'still';
   asset?: string;
+  example?: ExampleScreen;
 };
 export type Project = {
   id: string;
@@ -41,29 +43,6 @@ export const createProject = (name = 'Bizinfix App Demo'): Project => ({
   scenes: [newScene()],
   assets: [],
 });
-export const templates = [
-  {
-    name: 'Serviceo Launch',
-    title: 'Your home.\nHandled.',
-    subtitle: 'Book trusted local pros in minutes.',
-    background: '#101d18',
-    accent: '#caff63',
-  },
-  {
-    name: 'Product Spotlight',
-    title: 'Meet your\nnext favorite app.',
-    subtitle: 'A better way to get things done.',
-    background: '#16152b',
-    accent: '#bcabff',
-  },
-  {
-    name: 'Urban Motion',
-    title: 'Ready when\nyou are.',
-    subtitle: 'Everything you need, one tap away.',
-    background: '#23201b',
-    accent: '#ffbc70',
-  },
-];
 export const frames = (p: Project) =>
   p.scenes.reduce((sum, s) => sum + Math.round(s.seconds * p.fps), 0);
 export const assetUrl = (id: string, origin = '') => origin + '/api/media/' + id;
